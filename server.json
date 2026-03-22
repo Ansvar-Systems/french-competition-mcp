@@ -1,0 +1,34 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "eu.ansvar/french-competition-mcp",
+  "description": "Query AdlC (Autorite de la concurrence) decisions, merger control cases, and sector enforcement activity under French competition law",
+  "repository": {
+    "url": "https://github.com/Ansvar-Systems/french-competition-mcp",
+    "source": "github"
+  },
+  "homepage": "https://ansvar.eu",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "keywords": [
+    "adlc",
+    "french-competition",
+    "code-commerce",
+    "concentration",
+    "antitrust",
+    "france",
+    "competition-law",
+    "compliance",
+    "mcp",
+    "ansvar"
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@ansvar/french-competition-mcp",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
