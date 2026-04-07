@@ -26,6 +26,7 @@ import {
   getMerger,
   listSectors,
 } from "./db.js";
+import { buildCitation } from "./citation.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -234,7 +235,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!decision) {
           return errorContent(`Decision not found: ${parsed.case_number}`);
         }
-        return textContent(decision);
+        const decisionRecord = decision as Record<string, unknown>;
+        return textContent({
+          ...decisionRecord,
+          _citation: buildCitation(
+            String(decisionRecord.case_number ?? parsed.case_number),
+            String(decisionRecord.title ?? decisionRecord.case_number ?? parsed.case_number),
+            "fr_comp_get_decision",
+            { case_number: parsed.case_number },
+            decisionRecord.url as string | undefined,
+          ),
+        });
       }
 
       case "fr_comp_search_mergers": {
@@ -254,7 +265,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!merger) {
           return errorContent(`Merger case not found: ${parsed.case_number}`);
         }
-        return textContent(merger);
+        const mergerRecord = merger as Record<string, unknown>;
+        return textContent({
+          ...mergerRecord,
+          _citation: buildCitation(
+            String(mergerRecord.case_number ?? parsed.case_number),
+            String(mergerRecord.title ?? mergerRecord.case_number ?? parsed.case_number),
+            "fr_comp_get_merger",
+            { case_number: parsed.case_number },
+            mergerRecord.url as string | undefined,
+          ),
+        });
       }
 
       case "fr_comp_list_sectors": {
