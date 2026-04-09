@@ -30,6 +30,7 @@ import {
   getMerger,
   listSectors,
 } from "./db.js";
+import { buildCitation } from "./citation.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -47,23 +48,44 @@ try {
   // fallback
 }
 
+// --- Meta block (golden standard requirement) ---------------------------------
+
+function buildMeta() {
+  return {
+    disclaimer:
+      "This information is provided for research purposes only and does not constitute legal or regulatory advice. Verify all references against primary sources before making compliance decisions.",
+    source_url: "https://www.autoritedelaconcurrence.fr/",
+    copyright:
+      "© Autorité de la concurrence — data sourced from official publications",
+    generated_by: SERVER_NAME,
+  };
+}
+
 // --- Tool definitions (shared with index.ts) ---------------------------------
 
 const TOOLS = [
   {
     name: "fr_comp_search_decisions",
     description:
-      "Full-text search across AdlC enforcement decisions (abuse of dominance, cartel, sector inquiries). Returns matching decisions with case number, parties, outcome, fine amount, and GWB articles cited.",
+      "Full-text search across AdlC enforcement decisions (abuse of dominance, cartel, sector inquiries). Returns matching decisions with case number, parties, outcome, fine amount, and Code de commerce articles cited.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        query: { type: "string", description: "Search query (e.g., 'Marktmissbrauch', 'Facebook', 'Preisabsprache')" },
+        query: {
+          type: "string",
+          description:
+            "Search query (e.g., 'entente', 'abus de position dominante', 'concentration')",
+        },
         type: {
           type: "string",
           enum: ["abuse_of_dominance", "cartel", "merger", "sector_inquiry"],
           description: "Filter by decision type. Optional.",
         },
-        sector: { type: "string", description: "Filter by sector ID. Optional." },
+        sector: {
+          type: "string",
+          description:
+            "Filter by sector ID (e.g., 'digital_economy', 'energy', 'food_retail'). Optional.",
+        },
         outcome: {
           type: "string",
           enum: ["prohibited", "cleared", "cleared_with_conditions", "fine"],
@@ -77,11 +99,15 @@ const TOOLS = [
   {
     name: "fr_comp_get_decision",
     description:
-      "Get a specific Bundeskartellamt decision by case number (e.g., 'B6-22/16').",
+      "Get a specific AdlC decision by case number (e.g., '18-D-24', '20-D-11').",
     inputSchema: {
       type: "object" as const,
       properties: {
-        case_number: { type: "string", description: "Case number (e.g., 'B6-22/16', 'B2-94/12')" },
+        case_number: {
+          type: "string",
+          description:
+            "AdlC case number (e.g., '18-D-24', '20-D-11', '19-MC-01')",
+        },
       },
       required: ["case_number"],
     },
@@ -89,12 +115,20 @@ const TOOLS = [
   {
     name: "fr_comp_search_mergers",
     description:
-      "Search AdlC merger control decisions.",
+      "Search AdlC merger control decisions. Returns merger cases with acquiring party, target, sector, and outcome.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        query: { type: "string", description: "Search query (e.g., 'Vonovia', 'Energieversorgung')" },
-        sector: { type: "string", description: "Filter by sector ID. Optional." },
+        query: {
+          type: "string",
+          description:
+            "Search query (e.g., 'TF1 / M6', 'Fnac / Darty', 'télécommunications')",
+        },
+        sector: {
+          type: "string",
+          description:
+            "Filter by sector ID (e.g., 'energy', 'food_retail', 'media'). Optional.",
+        },
         outcome: {
           type: "string",
           enum: ["cleared", "cleared_phase1", "cleared_with_conditions", "prohibited"],
@@ -108,11 +142,15 @@ const TOOLS = [
   {
     name: "fr_comp_get_merger",
     description:
-      "Get a specific merger control decision by case number (e.g., 'B1-35/21').",
+      "Get a specific AdlC merger control decision by case number (e.g., '19-DCC-215', '22-DCC-14').",
     inputSchema: {
       type: "object" as const,
       properties: {
-        case_number: { type: "string", description: "Merger case number (e.g., 'B1-35/21')" },
+        case_number: {
+          type: "string",
+          description:
+            "AdlC merger case number (e.g., '19-DCC-215', '22-DCC-14')",
+        },
       },
       required: ["case_number"],
     },
@@ -127,6 +165,18 @@ const TOOLS = [
     name: "fr_comp_about",
     description:
       "Return metadata about this MCP server: version, data source, coverage, and tool list.",
+    inputSchema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
+    name: "fr_comp_list_sources",
+    description:
+      "List all data sources used by this MCP server with provenance, licensing, and update cadence information.",
+    inputSchema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
+    name: "fr_comp_check_data_freshness",
+    description:
+      "Check how current the data is — returns the last-ingested date per data category and whether an update is available.",
     inputSchema: { type: "object" as const, properties: {}, required: [] },
   },
 ];
@@ -195,7 +245,7 @@ function createMcpServer(): Server {
             outcome: parsed.outcome,
             limit: parsed.limit,
           });
-          return textContent({ results, count: results.length });
+          return textContent({ results, count: results.length, _meta: buildMeta() });
         }
 
         case "fr_comp_get_decision": {
@@ -204,7 +254,18 @@ function createMcpServer(): Server {
           if (!decision) {
             return errorContent(`Decision not found: ${parsed.case_number}`);
           }
-          return textContent(decision);
+          const decisionRecord = decision as unknown as Record<string, unknown>;
+          return textContent({
+            ...decisionRecord,
+            _citation: buildCitation(
+              String(decisionRecord["case_number"] ?? parsed.case_number),
+              String(decisionRecord["title"] ?? decisionRecord["case_number"] ?? parsed.case_number),
+              "fr_comp_get_decision",
+              { case_number: parsed.case_number },
+              decisionRecord["url"] as string | undefined,
+            ),
+            _meta: buildMeta(),
+          });
         }
 
         case "fr_comp_search_mergers": {
@@ -215,7 +276,7 @@ function createMcpServer(): Server {
             outcome: parsed.outcome,
             limit: parsed.limit,
           });
-          return textContent({ results, count: results.length });
+          return textContent({ results, count: results.length, _meta: buildMeta() });
         }
 
         case "fr_comp_get_merger": {
@@ -224,12 +285,23 @@ function createMcpServer(): Server {
           if (!merger) {
             return errorContent(`Merger case not found: ${parsed.case_number}`);
           }
-          return textContent(merger);
+          const mergerRecord = merger as unknown as Record<string, unknown>;
+          return textContent({
+            ...mergerRecord,
+            _citation: buildCitation(
+              String(mergerRecord["case_number"] ?? parsed.case_number),
+              String(mergerRecord["title"] ?? mergerRecord["case_number"] ?? parsed.case_number),
+              "fr_comp_get_merger",
+              { case_number: parsed.case_number },
+              mergerRecord["url"] as string | undefined,
+            ),
+            _meta: buildMeta(),
+          });
         }
 
         case "fr_comp_list_sectors": {
           const sectors = listSectors();
-          return textContent({ sectors, count: sectors.length });
+          return textContent({ sectors, count: sectors.length, _meta: buildMeta() });
         }
 
         case "fr_comp_about": {
@@ -239,7 +311,54 @@ function createMcpServer(): Server {
             description:
               "AdlC (Autorite de la concurrence) MCP server. Provides access to French competition law enforcement decisions and merger control cases.",
             data_source: "AdlC (https://www.autoritedelaconcurrence.fr/)",
+            coverage: {
+              decisions:
+                "Abuse of dominance, cartel enforcement, and sector inquiries",
+              mergers: "Merger control decisions — Phase I and Phase II",
+              sectors:
+                "numerique, energie, grande distribution, automobile, services financiers, sante, medias, telecommunications",
+            },
             tools: TOOLS.map((t) => ({ name: t.name, description: t.description })),
+            _meta: buildMeta(),
+          });
+        }
+
+        case "fr_comp_list_sources": {
+          return textContent({
+            sources: [
+              {
+                id: "adlc_decisions",
+                name: "AdlC Enforcement Decisions",
+                authority: "Autorité de la concurrence",
+                url: "https://www.autoritedelaconcurrence.fr/fr/liste-des-decisions-et-avis",
+                license: "Open data — official French government publication",
+                coverage: "Abuse of dominance, cartel enforcement, sector inquiries",
+                update_cadence: "Periodic — decisions published as issued",
+              },
+              {
+                id: "adlc_mergers",
+                name: "AdlC Merger Control Decisions",
+                authority: "Autorité de la concurrence",
+                url: "https://www.autoritedelaconcurrence.fr/fr/liste-des-decisions-et-avis?type_decision=concentrations",
+                license: "Open data — official French government publication",
+                coverage: "Phase I and Phase II merger control decisions",
+                update_cadence: "Periodic — decisions published as issued",
+              },
+            ],
+            _meta: buildMeta(),
+          });
+        }
+
+        case "fr_comp_check_data_freshness": {
+          return textContent({
+            status: "unknown",
+            note:
+              "Freshness metadata is written at ingest time. Run npm run ingest to refresh. Check ADLC_DB_PATH database for last-inserted record dates.",
+            categories: {
+              decisions: { last_checked: null, source: "adlc_decisions" },
+              mergers: { last_checked: null, source: "adlc_mergers" },
+            },
+            _meta: buildMeta(),
           });
         }
 

@@ -49,7 +49,7 @@ const TOOLS = [
   {
     name: "fr_comp_search_decisions",
     description:
-      "Full-text search across AdlC enforcement decisions (abuse of dominance, cartel, sector inquiries). Returns matching decisions with case number, parties, outcome, fine amount, and GWB articles cited.",
+      "Full-text search across AdlC enforcement decisions (abuse of dominance, cartel, sector inquiries). Returns matching decisions with case number, parties, outcome, fine amount, and Code de commerce articles cited.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -157,6 +157,26 @@ const TOOLS = [
       required: [],
     },
   },
+  {
+    name: "fr_comp_list_sources",
+    description:
+      "List all data sources used by this MCP server with provenance, licensing, and update cadence information.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "fr_comp_check_data_freshness",
+    description:
+      "Check how current the data is — returns the last-ingested date per data category and whether an update is available.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
 ];
 
 // --- Zod schemas for argument validation --------------------------------------
@@ -201,6 +221,17 @@ function errorContent(message: string) {
   };
 }
 
+function buildMeta() {
+  return {
+    disclaimer:
+      "This information is provided for research purposes only and does not constitute legal or regulatory advice. Verify all references against primary sources before making compliance decisions.",
+    source_url: "https://www.autoritedelaconcurrence.fr/",
+    copyright:
+      "© Autorité de la concurrence — data sourced from official publications",
+    generated_by: SERVER_NAME,
+  };
+}
+
 // --- Server setup ------------------------------------------------------------
 
 const server = new Server(
@@ -226,7 +257,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           outcome: parsed.outcome,
           limit: parsed.limit,
         });
-        return textContent({ results, count: results.length });
+        return textContent({ results, count: results.length, _meta: buildMeta() });
       }
 
       case "fr_comp_get_decision": {
@@ -235,7 +266,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!decision) {
           return errorContent(`Decision not found: ${parsed.case_number}`);
         }
-        const decisionRecord = decision as Record<string, unknown>;
+        const decisionRecord = decision as unknown as Record<string, unknown>;
         return textContent({
           ...decisionRecord,
           _citation: buildCitation(
@@ -245,6 +276,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             { case_number: parsed.case_number },
             decisionRecord.url as string | undefined,
           ),
+          _meta: buildMeta(),
         });
       }
 
@@ -256,7 +288,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           outcome: parsed.outcome,
           limit: parsed.limit,
         });
-        return textContent({ results, count: results.length });
+        return textContent({ results, count: results.length, _meta: buildMeta() });
       }
 
       case "fr_comp_get_merger": {
@@ -265,7 +297,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!merger) {
           return errorContent(`Merger case not found: ${parsed.case_number}`);
         }
-        const mergerRecord = merger as Record<string, unknown>;
+        const mergerRecord = merger as unknown as Record<string, unknown>;
         return textContent({
           ...mergerRecord,
           _citation: buildCitation(
@@ -275,12 +307,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             { case_number: parsed.case_number },
             mergerRecord.url as string | undefined,
           ),
+          _meta: buildMeta(),
         });
       }
 
       case "fr_comp_list_sectors": {
         const sectors = listSectors();
-        return textContent({ sectors, count: sectors.length });
+        return textContent({ sectors, count: sectors.length, _meta: buildMeta() });
       }
 
       case "fr_comp_about": {
@@ -296,6 +329,46 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             sectors: "numerique, energie, grande distribution, automobile, services financiers, sante, medias, telecommunications",
           },
           tools: TOOLS.map((t) => ({ name: t.name, description: t.description })),
+          _meta: buildMeta(),
+        });
+      }
+
+      case "fr_comp_list_sources": {
+        return textContent({
+          sources: [
+            {
+              id: "adlc_decisions",
+              name: "AdlC Enforcement Decisions",
+              authority: "Autorité de la concurrence",
+              url: "https://www.autoritedelaconcurrence.fr/fr/liste-des-decisions-et-avis",
+              license: "Open data — official French government publication",
+              coverage: "Abuse of dominance, cartel enforcement, sector inquiries",
+              update_cadence: "Periodic — decisions published as issued",
+            },
+            {
+              id: "adlc_mergers",
+              name: "AdlC Merger Control Decisions",
+              authority: "Autorité de la concurrence",
+              url: "https://www.autoritedelaconcurrence.fr/fr/liste-des-decisions-et-avis?type_decision=concentrations",
+              license: "Open data — official French government publication",
+              coverage: "Phase I and Phase II merger control decisions",
+              update_cadence: "Periodic — decisions published as issued",
+            },
+          ],
+          _meta: buildMeta(),
+        });
+      }
+
+      case "fr_comp_check_data_freshness": {
+        return textContent({
+          status: "unknown",
+          note:
+            "Freshness metadata is written at ingest time. Run npm run ingest to refresh. Check ADLC_DB_PATH database for last-inserted record dates.",
+          categories: {
+            decisions: { last_checked: null, source: "adlc_decisions" },
+            mergers: { last_checked: null, source: "adlc_mergers" },
+          },
+          _meta: buildMeta(),
         });
       }
 
