@@ -4,7 +4,7 @@
 
 [![npm version](https://badge.fury.io/js/%40ansvar%2Ffrench-competition-mcp.svg)](https://www.npmjs.com/package/@ansvar/french-competition-mcp)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![CI](https://github.com/Ansvar-Systems/french-competition-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Ansvar-Systems/french-competition-mcp/actions/workflows/ci.yml)
+[![Build](https://github.com/Ansvar-Systems/french-competition-mcp/actions/workflows/ghcr-build.yml/badge.svg)](https://github.com/Ansvar-Systems/french-competition-mcp/actions/workflows/ghcr-build.yml)
 
 Query French competition data -- regulations, decisions, and requirements from Autorite de la concurrence -- directly from Claude, Cursor, or any MCP-compatible client.
 
@@ -90,16 +90,20 @@ npx @ansvar/french-competition-mcp
 
 ---
 
-## Available Tools (6)
+## Available Tools (8)
 
 | Tool | Description |
 |------|-------------|
-| `fr_comp_search_decisions` | Full-text search across AdlC enforcement decisions (abuse of dominance, cartel, sector inquiries). Returns matching d... |
-| `fr_comp_get_decision` | Get a specific AdlC decision by case number (e.g., |
+| `fr_comp_search_decisions` | Full-text search across AdlC enforcement decisions (abuse of dominance, cartel, sector inquiries). |
+| `fr_comp_get_decision` | Get a specific AdlC decision by case number (e.g., `'18-D-24'`). |
 | `fr_comp_search_mergers` | Search AdlC merger control decisions. Returns merger cases with acquiring party, target, sector, and outcome. |
-| `fr_comp_get_merger` | Get a specific AdlC merger control decision by case number (e.g., |
+| `fr_comp_get_merger` | Get a specific AdlC merger control decision by case number (e.g., `'19-DCC-215'`). |
 | `fr_comp_list_sectors` | List all sectors with AdlC enforcement activity, including decision counts and merger counts per sector. |
 | `fr_comp_about` | Return metadata about this MCP server: version, data source, coverage, and tool list. |
+| `fr_comp_list_sources` | List all data sources with provenance, licensing, and update cadence information. |
+| `fr_comp_check_data_freshness` | Check how current the data is — last-ingested date per category. |
+
+See [TOOLS.md](TOOLS.md) for full argument schemas and response formats.
 
 All tools return structured data with source references and timestamps.
 
@@ -117,7 +121,7 @@ All content is sourced from official French regulatory publications:
 - Freshness checks run via GitHub Actions workflows
 - Last-updated timestamps in tool responses indicate data age
 
-See `sources.yml` for full provenance metadata.
+See [COVERAGE.md](COVERAGE.md) for full provenance and coverage metadata. Use the `fr_comp_list_sources` tool to query source information at runtime.
 
 ---
 
@@ -167,7 +171,7 @@ git clone https://github.com/Ansvar-Systems/french-competition-mcp
 cd french-competition-mcp
 npm install
 npm run build
-npm test
+npm run typecheck
 ```
 
 ### Running Locally
@@ -180,8 +184,8 @@ npx @anthropic/mcp-inspector node dist/index.js   # Test with MCP Inspector
 ### Data Management
 
 ```bash
-npm run build:db       # Rebuild SQLite database from seed data
-npm run check-updates  # Check for new regulatory data
+npm run seed    # Seed SQLite database with sample data
+npm run ingest  # Ingest latest data from AdlC
 ```
 
 ---
@@ -218,7 +222,7 @@ Apache License 2.0. See [LICENSE](./LICENSE) for details.
 
 ### Data Licenses
 
-Regulatory data sourced from official government publications. See `sources.yml` for per-source licensing details.
+Regulatory data sourced from official government publications. See [COVERAGE.md](COVERAGE.md) for per-source licensing details.
 
 ---
 
