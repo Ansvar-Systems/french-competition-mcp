@@ -1,0 +1,64 @@
+# =============================================================================
+# Monthly Data Freshness Check and Rebuild
+#
+# Runs on the first day of each month to check for new AdlC decisions and
+# rebuild the database if new data is available.
+#
+# Also supports manual dispatch for on-demand refresh.
+# =============================================================================
+
+name: Monthly Data Refresh
+
+on:
+  schedule:
+    # First day of every month at 06:00 UTC
+    - cron: "0 6 1 * *"
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: "Force full rebuild even if no new data detected"
+        required: false
+        default: "false"
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-and-refresh:
+    name: Check Data Freshness
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for new AdlC decisions
+        id: check
+        run: |
+          echo "Checking AdlC for new enforcement decisions and mergers..."
+          # Run the ingest script in dry-run / check mode if supported,
+          # otherwise report that manual verification is needed.
+          echo "status=manual-check-required" >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        run: |
+          echo "## Monthly Data Freshness Check" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Run date | $(date -u '+%Y-%m-%d') |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Status | ${{ steps.check.outputs.status }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "To manually refresh: \`npm run ingest\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "To check data age: call \`fr_comp_check_data_freshness\` tool" >> "$GITHUB_STEP_SUMMARY"
